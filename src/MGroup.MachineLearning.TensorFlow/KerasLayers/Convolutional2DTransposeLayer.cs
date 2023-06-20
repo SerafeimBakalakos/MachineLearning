@@ -11,14 +11,14 @@ using Tensorflow.Operations.Initializers;
 namespace MGroup.MachineLearning.TensorFlow.KerasLayers
 {
 	[Serializable]
-	public class Convolutional2DLayer : INetworkLayer
+	public class Convolutional2DTransposeLayer : INetworkLayer
 	{
 		public int Filters { get; }
 		public (int, int) KernelSize { get; }
 		public ActivationType ActivationType { get; }
 		public string Padding { get; }
 
-		public Convolutional2DLayer(int filters, (int, int) kernelSize, ActivationType activationType, string padding = "valid")
+		public Convolutional2DTransposeLayer(int filters, (int, int) kernelSize, ActivationType activationType, string padding = "valid")
 		{
 			Filters = filters;
 			KernelSize = kernelSize;
@@ -26,7 +26,7 @@ namespace MGroup.MachineLearning.TensorFlow.KerasLayers
 			Padding = padding;
 		}
 
-		public Tensors BuildLayer(Tensors output) => new Conv2D(new Conv2DArgs()
+		public Tensors BuildLayer(Tensors output) => new Conv2DTranspose(new Conv2DArgs()
 		{
 			Filters = Filters,
 			KernelSize = KernelSize,

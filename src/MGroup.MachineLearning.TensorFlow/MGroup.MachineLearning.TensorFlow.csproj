@@ -17,9 +17,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="SciSharp.TensorFlow.Redist" Version="2.7.0" />
-    <PackageReference Include="TensorFlow.Keras" Version="0.7.0" />
-    <PackageReference Include="TensorFlow.NET" Version="0.70.1" />
+    <PackageReference Include="SciSharp.TensorFlow.Redist" Version="2.11.3" />
+    <PackageReference Include="TensorFlow.Keras" Version="0.10.5" />
+    <PackageReference Include="TensorFlow.NET" Version="0.100.5" />
   </ItemGroup>
 
   <ItemGroup>

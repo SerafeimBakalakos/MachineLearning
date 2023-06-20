@@ -14,41 +14,39 @@ using Tensorflow.Keras.Losses;
 using System.IO;
 using MGroup.MachineLearning.Preprocessing;
 using MGroup.MachineLearning.TensorFlow.KerasLayers;
-using static HDF.PInvoke.H5T;
-using static HDF.PInvoke.H5Z;
-using Tensorflow.Keras.Engine.DataAdapters;
-using Tensorflow.Keras.Metrics;
-using System.Xml.Linq;
 
 namespace MGroup.MachineLearning.TensorFlow.NeuralNetworks
 {
-	public class ConvolutionalNeuralNetwork //: INeuralNetwork
+	public class Autoencoder //: INeuralNetwork
 	{
-		private Keras.Model model;
-		private NDArray trainX, testX, trainY, testY;
+		private Keras.Model autoencoderModel;
+		private Keras.Model encoderModel;
+		private Keras.Model decoderModel;
+		private NDArray trainX, testX;
 		private bool classification;
 
 		public int? Seed { get; }
 		public int BatchSize { get; }
 		public int Epochs { get; }
-		public INetworkLayer[] NeuralNetworkLayer { get; private set; }
+		public INetworkLayer[] EncoderLayer { get; private set; }
+		public INetworkLayer[] DecoderLayer { get; private set; }
+		public INetworkLayer[] AutoencoderLayer { get; private set; }
 		public INormalization NormalizationX { get; private set; }
-		public INormalization NormalizationY { get; private set; }
 		public OptimizerV2 Optimizer { get; }
 		public ILossFunc LossFunction { get; }
 		public Layer[] Layer { get; private set; }
-	
 
-		public ConvolutionalNeuralNetwork(INormalization normalizationX, INormalization normalizationY, OptimizerV2 optimizer, ILossFunc lossFunc, INetworkLayer[] neuralNetworkLayers, int epochs, int batchSize = -1, int? seed = 1, bool classification = false)
+
+		public Autoencoder(INormalization normalizationX, OptimizerV2 optimizer, ILossFunc lossFunc, INetworkLayer[] encoderLayers, INetworkLayer[] decoderLayers, int epochs, int batchSize = -1, int? seed = 1, bool classification = false)
 		{
 			BatchSize = batchSize;
 			Epochs = epochs;
 			Seed = seed;
 			NormalizationX = normalizationX;
-			NormalizationY = normalizationY;
 			Optimizer = optimizer;
 			LossFunction = lossFunc;
-			NeuralNetworkLayer = neuralNetworkLayers;
+			EncoderLayer = encoderLayers;
+			DecoderLayer = decoderLayers;
 			this.classification = classification;
 
 			if (seed != null)
@@ -60,38 +58,35 @@ namespace MGroup.MachineLearning.TensorFlow.NeuralNetworks
 		/// <summary>
 		/// This constructor can be used for objects that will load their properties from external files.
 		/// </summary>
-		public ConvolutionalNeuralNetwork()
+		public Autoencoder()
 		{
 		}
 
-		public void Train(double[,,,] stimuli, double[,] responses) => Train(stimuli, responses, null, null);
+		public void Train(double[,] stimuli) => Train(stimuli, null);
 
-		public void Train(double[,,,] trainX, double[,] trainY, double[,,,] testX = null, double[,] testY = null)
+		public void Train(double[,] trainX, double[,] testX = null)
 		{
 			tf.enable_eager_execution();
 
-			PrepareData(trainX, trainY, testX, testY);
+			PrepareData(trainX, testX);
 
 			CreateModel();
 
-			model.compile(loss: LossFunction, optimizer: Optimizer, metrics: new[] { "accuracy" });
+			autoencoderModel.compile(loss: LossFunction, optimizer: Optimizer);
 
-			model.fit(this.trainX, this.trainY, batch_size: BatchSize, epochs: Epochs, shuffle: false);
+			autoencoderModel.fit(this.trainX, this.trainX, batch_size: BatchSize, epochs: Epochs, shuffle: false);
 
-			if (testX != null && testY != null)
+			if (testX != null)
 			{
-				model.evaluate(this.testX, this.testY, batch_size: BatchSize);
+				autoencoderModel.evaluate(this.testX, this.testX, batch_size: BatchSize);
 			}
 		}
 
-		public double[,] EvaluateResponses(double[,,,] stimuli)
+		public double[,] EvaluateResponses(double[,] stimuli)
 		{
-			//stimuli = NormalizationX.Normalize(stimuli);
-
 			var npData = np.array(stimuli);
-			var result = ((Tensor)model.Apply(npData, training: false)).numpy();
-			//var resultSqueezed = tf.squeeze(resultFull).ToArray<double>();
-			var responses = new double[result.shape[0], result.shape[1]]; //.GetShape().as_int_list()[1]];
+			var result = ((Tensor)autoencoderModel.Apply(npData, training: false)).numpy();
+			var responses = new double[result.shape[0], result.shape[1]];
 			for (int i = 0; i < result.shape[0]; i++)
 			{
 				for (int j = 0; j < result.shape[1]; j++)
@@ -99,9 +94,36 @@ namespace MGroup.MachineLearning.TensorFlow.NeuralNetworks
 					responses[i, j] = result[i, j];
 				}
 			}
+			return responses;
+		}
 
-			//responses = NormalizationY.Denormalize(responses);
+		public double[,] MapFullToReduced(double[,] initialStimuli)
+		{
+			var npData = np.array(initialStimuli);
+			var result = ((Tensor)encoderModel.Apply(npData, training: false)).numpy();
+			var responses = new double[result.shape[0], result.shape[1]];
+			for (int i = 0; i < result.shape[0]; i++)
+			{
+				for (int j = 0; j < result.shape[1]; j++)
+				{
+					responses[i, j] = result[i, j];
+				}
+			}
+			return responses;
+		}
 
+		public double[,] MapReducedToFull(double[,] reducedStimuli)
+		{
+			var npData = np.array(reducedStimuli);
+			var result = ((Tensor)decoderModel.Apply(npData, training: false)).numpy();
+			var responses = new double[result.shape[0], result.shape[1]];
+			for (int i = 0; i < result.shape[0]; i++)
+			{
+				for (int j = 0; j < result.shape[1]; j++)
+				{
+					responses[i, j] = result[i, j];
+				}
+			}
 			return responses;
 		}
 
@@ -146,38 +168,38 @@ namespace MGroup.MachineLearning.TensorFlow.NeuralNetworks
 		//	return responseGradients;
 		//}
 
-		public double ValidateNetwork(double[,,,] testX, double[,] testY)
+		public double ValidateNetwork(double[,] testX)
 		{
-			var predY = EvaluateResponses(testX);
-			var predYnp = np.array(predY);
-			var testYnp = np.array(testY);
+			var predX = EvaluateResponses(testX);
+			var predXnp = np.array(predX);
+			var testXnp = np.array(testX);
 			var accuracy = new Tensor(0);
 			if (classification == false)
 			{
-				accuracy = LossFunction.Call(testYnp, predYnp);
+				accuracy = LossFunction.Call(testXnp, predXnp);
 			}
 			else
 			{
-				var correct_prediction = tf.equal(tf.math.argmax(predYnp, 1), tf.cast(tf.squeeze(testYnp), tf.int64));
+				var correct_prediction = tf.equal(tf.math.argmax(predXnp, 1), tf.cast(tf.squeeze(testXnp), tf.int64));
 				accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32), axis: -1);
 			}
-			return (double)accuracy.ToArray<float>()[0];
+			return accuracy.ToArray<double>()[0];
 		}
 
 		public void SaveNetwork(string netPath, string weightsPath, string normalizationPath)
 		{
-			model.save_weights(weightsPath);
+			autoencoderModel.save_weights(weightsPath);
 
 			using (Stream stream = File.Open(normalizationPath, false ? FileMode.Append : FileMode.Create))
 			{
 				var binaryFormatter = new System.Runtime.Serialization.Formatters.Binary.BinaryFormatter();
-				binaryFormatter.Serialize(stream, new INormalization[] { NormalizationX, NormalizationY });
+				binaryFormatter.Serialize(stream, new INormalization[] { NormalizationX });
 			}
 
 			using (Stream stream = File.Open(netPath, false ? FileMode.Append : FileMode.Create))
 			{
 				var binaryFormatter = new System.Runtime.Serialization.Formatters.Binary.BinaryFormatter();
-				binaryFormatter.Serialize(stream, NeuralNetworkLayer);
+				binaryFormatter.Serialize(stream, AutoencoderLayer);
 			}
 		}
 
@@ -188,28 +210,25 @@ namespace MGroup.MachineLearning.TensorFlow.NeuralNetworks
 				var binaryFormatter = new System.Runtime.Serialization.Formatters.Binary.BinaryFormatter();
 				var Normalization = (INormalization[])binaryFormatter.Deserialize(stream);
 				NormalizationX = Normalization[0];
-				NormalizationY = Normalization[1];
 			}
 
 			using (Stream stream = File.Open(netPath, FileMode.Open))
 			{
 				var binaryFormatter = new System.Runtime.Serialization.Formatters.Binary.BinaryFormatter();
-				NeuralNetworkLayer = (INetworkLayer[])binaryFormatter.Deserialize(stream);
+				AutoencoderLayer = (INetworkLayer[])binaryFormatter.Deserialize(stream);
 			}
 
 			CreateModel();
 
-			model.load_weights(weightsPath);
+			autoencoderModel.load_weights(weightsPath);
 		}
 
-		private void PrepareData(double[,,,] trainX, double[,] trainY, double[,,,] testX = null, double[,] testY = null)
+		private void PrepareData(double[,] trainX, double[,] testX = null)
 		{
 			this.trainX = np.array(trainX);
-			this.trainY = np.array(trainY);
-			if (testX != null && testY != null)
+			if (testX != null)
 			{
 				this.testX = np.array(testX);
-				this.testY = np.array(testY);
 			}
 		}
 
@@ -217,23 +236,49 @@ namespace MGroup.MachineLearning.TensorFlow.NeuralNetworks
 		{
 			keras.backend.clear_session();
 			keras.backend.set_floatx(TF_DataType.TF_DOUBLE);
-			if (!(NeuralNetworkLayer[0] is KerasLayers.InputLayer))
+			if (!(EncoderLayer[0] is KerasLayers.InputLayer))
 			{
 				throw new NotImplementedException($"First layer must be of type IInputLayer");
 			}
 
 			//var inputs = keras.Input(shape: (this.trainX.shape[1], this.trainX.shape[2], this.trainX.shape[3]), dtype: TF_DataType.TF_DOUBLE);
-			var inputs = keras.Input(shape: ((KerasLayers.InputLayer)NeuralNetworkLayer[0]).InputShape, dtype: TF_DataType.TF_DOUBLE); //.as_int_list()[0]
-			var outputs = inputs;
+			AutoencoderLayer = new INetworkLayer[EncoderLayer.Length + DecoderLayer.Length];
+			AutoencoderLayer[0] = EncoderLayer[0];
 
-			for (int i = 1; i < NeuralNetworkLayer.Length; i++)
+			var inputsEncoder = keras.Input(shape: ((KerasLayers.InputLayer)EncoderLayer[0]).InputShape, dtype: TF_DataType.TF_DOUBLE); //.as_int_list()[0]
+			var outputsEncoder = inputsEncoder;
+			for (int i = 1; i < EncoderLayer.Length; i++)
 			{
-				outputs = NeuralNetworkLayer[i].BuildLayer(outputs);
+				outputsEncoder = EncoderLayer[i].BuildLayer(outputsEncoder);
+				AutoencoderLayer[i] = EncoderLayer[i];
 			}
 
-			model = new Keras.Model(inputs, outputs, "current_model");
+			encoderModel = new Keras.Model(inputsEncoder, outputsEncoder, "encoder");
 
-			model.summary();
+			encoderModel.summary();
+
+			var latentVector = outputsEncoder;
+
+			var inputsDecoder = keras.Input(shape: encoderModel.Layers[encoderModel.Layers.Count - 1].OutputShape.as_int_list()[1], dtype: TF_DataType.TF_DOUBLE); //.as_int_list()[0]
+			var outputsDecoder = inputsDecoder;
+			for (int i = 0; i < DecoderLayer.Length; i++)
+			{
+				outputsDecoder = DecoderLayer[i].BuildLayer(outputsDecoder);
+				AutoencoderLayer[EncoderLayer.Length + i] = DecoderLayer[i];
+			}
+
+			decoderModel = new Keras.Model(inputsDecoder, outputsDecoder, "decoder");
+
+			decoderModel.summary();
+
+			keras.backend.clear_session();
+			var inputsAutoencoder = keras.Input(shape: ((KerasLayers.InputLayer)EncoderLayer[0]).InputShape, dtype: TF_DataType.TF_DOUBLE);
+			var outputsAutoencoder = encoderModel.Apply(inputsAutoencoder);
+			outputsAutoencoder = decoderModel.Apply(outputsAutoencoder);
+
+			autoencoderModel = new Keras.Model(inputsAutoencoder, outputsAutoencoder, "autoencoder");
+
+			autoencoderModel.summary();
 		}
 	}
 }
