@@ -13,17 +13,20 @@ namespace MGroup.MachineLearning.TensorFlow.KerasLayers
 	{
 		public (int, int)? PoolSize { get; }
 		public (int, int)? Strides { get; }
+		public string Padding { get; }
 
-		public MaxPooling2DLayer((int, int)? poolSize = null, (int, int)? strides = null)
+		public MaxPooling2DLayer((int, int)? poolSize = null, (int, int)? strides = null, string padding = "valid")
 		{
 			PoolSize = poolSize ?? (2, 2);
 			Strides = strides;
+			Padding = padding;
 		}
 
 		public Tensors BuildLayer(Tensors output) => new MaxPooling2D(new MaxPooling2DArgs()
 		{
 			PoolSize = this.PoolSize,
 			Strides = this.Strides,
+			Padding = this.Padding,
 			DType = TF_DataType.TF_DOUBLE
 		}).Apply(output);
 

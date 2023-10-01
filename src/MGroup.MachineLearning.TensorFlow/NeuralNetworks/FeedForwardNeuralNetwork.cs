@@ -123,7 +123,7 @@ namespace MGroup.MachineLearning.TensorFlow.NeuralNetworks
 
                     var numRowsGrad = pred.shape.dims[1];
                     var numColsGrad = npSample.GetShape().as_int_list()[1];
-                    var slicedPred = new Tensor();
+                    var slicedPred = new Tensor(0);
                     responseGradients[k] = new double[numRowsGrad, numColsGrad];
                     for (int i = 0; i < numRowsGrad; i++)
                     {
@@ -145,7 +145,7 @@ namespace MGroup.MachineLearning.TensorFlow.NeuralNetworks
 			var predY = EvaluateResponses(testX);
 			var predYnp = np.array(predY);
 			var testYnp = np.array(testY);
-			var accuracy = new Tensor();
+			var accuracy = new Tensor(0);
 			if (classification == false)
 			{
 				accuracy = LossFunction.Call(testYnp, predYnp);
