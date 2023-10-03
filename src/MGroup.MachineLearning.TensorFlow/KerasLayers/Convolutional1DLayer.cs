@@ -18,8 +18,10 @@ namespace MGroup.MachineLearning.TensorFlow.KerasLayers
 		public int Rank { get; }
 		public int DilationRate { get; }
 		public int Strides { get; }
+		public ConvolutionPaddingType Padding { get; }
 
-		public Convolutional1DLayer(int filters, int kernelSize, ActivationType activationType, int rank = 1, int dilationRate = 1, int strides = 1)
+		public Convolutional1DLayer(int filters, int kernelSize, ActivationType activationType, 
+			int rank = 1, int dilationRate = 1, int strides = 1, ConvolutionPaddingType padding = ConvolutionPaddingType.Valid)
 		{
 			Filters = filters;
 			KernelSize = kernelSize;
@@ -27,6 +29,7 @@ namespace MGroup.MachineLearning.TensorFlow.KerasLayers
 			Rank = rank;
 			DilationRate = dilationRate;
 			Strides = strides;
+			Padding = padding;
 		}
 
 		public Tensors BuildLayer(Tensors inputs) => new Conv1D(new Conv1DArgs()
@@ -38,6 +41,7 @@ namespace MGroup.MachineLearning.TensorFlow.KerasLayers
 			DilationRate = this.DilationRate,
 			Strides = this.Strides,
 			DType = TF_DataType.TF_DOUBLE,
+			Padding = this.Padding.ToString(),
 		}).Apply(inputs);
 
 		private Activation GetActivationByName(ActivationType activation)
