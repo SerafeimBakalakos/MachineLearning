@@ -12,6 +12,7 @@ using System.Reflection;
 
 namespace MGroup.MachineLearning.Tests
 {
+	[Collection("Run sequentially")]
 	public class ConvolutionalNeuralNetworkTest
 	{
 

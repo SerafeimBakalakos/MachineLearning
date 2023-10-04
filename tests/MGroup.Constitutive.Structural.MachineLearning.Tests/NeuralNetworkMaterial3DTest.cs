@@ -7,7 +7,8 @@ using System.Reflection;
 
 namespace MGroup.Constitutive.Structural.MachineLearning.Tests
 {
-    public static class NeuralNetworkMaterial3DTest
+	[Collection("Run sequentially")]
+	public static class NeuralNetworkMaterial3DTest
 	{
 		[Fact]
 		public static void RunTest()

@@ -8,6 +8,7 @@ using Tensorflow.Keras.Losses;
 
 namespace MGroup.MachineLearning.Tests
 {
+	[Collection("Run sequentially")]
 	public class FeedForwardNeuralNetworkTest
     {
 		//learning the polynomial : f(x)=x^2 in x -> [-1 , 1], f'(x)=2x

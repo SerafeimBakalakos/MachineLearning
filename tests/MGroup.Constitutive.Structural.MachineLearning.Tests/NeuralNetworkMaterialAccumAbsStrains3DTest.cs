@@ -8,6 +8,7 @@ using MGroup.MachineLearning;
 
 namespace MGroup.Constitutive.Structural.MachineLearning.Tests
 {
+	[Collection("Run sequentially")]
 	public static class NeuralNetworkMaterialAccumAbsStrains3DTest
 	{
 		[Fact]
