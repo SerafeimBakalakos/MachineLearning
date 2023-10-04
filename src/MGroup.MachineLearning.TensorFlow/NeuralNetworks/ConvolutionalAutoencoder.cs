@@ -1,22 +1,20 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using Tensorflow;
-using Tensorflow.Keras;
-using Tensorflow.Keras.ArgsDefinition;
-using Tensorflow.Keras.Engine;
-using Tensorflow.Keras.Optimizers;
-using Tensorflow.NumPy;
-using Tensorflow.Keras.Layers;
-using static Tensorflow.Binding;
-using static Tensorflow.KerasApi;
-using Tensorflow.Keras.Losses;
-using System.IO;
-using MGroup.MachineLearning.Preprocessing;
-using MGroup.MachineLearning.TensorFlow.KerasLayers;
-
 namespace MGroup.MachineLearning.TensorFlow.NeuralNetworks
 {
+	using System;
+	using System.IO;
+	using System.Linq;
+
+	using MGroup.MachineLearning.Preprocessing;
+	using MGroup.MachineLearning.TensorFlow.KerasLayers;
+	using Tensorflow;
+	using Tensorflow.Keras.Engine;
+	using Tensorflow.Keras.Losses;
+	using Tensorflow.Keras.Optimizers;
+	using Tensorflow.NumPy;
+
+	using static Tensorflow.Binding;
+	using static Tensorflow.KerasApi;
+
 	public class ConvolutionalAutoencoder //: INeuralNetwork
 	{
 		private Keras.Model autoencoderModel;
@@ -25,19 +23,9 @@ namespace MGroup.MachineLearning.TensorFlow.NeuralNetworks
 		private NDArray trainX, testX;
 		private bool classification;
 
-		public int? Seed { get; }
-		public int BatchSize { get; }
-		public int Epochs { get; }
-		public INetworkLayer[] EncoderLayer { get; private set; }
-		public INetworkLayer[] DecoderLayer { get; private set; }
-		public INetworkLayer[] AutoencoderLayer { get; private set; }
-		public INormalization Normalization { get; private set; }
-		public OptimizerV2 Optimizer { get; }
-		public ILossFunc LossFunction { get; }
-		public Layer[] Layer { get; private set; }
-
-
-		public ConvolutionalAutoencoder(INormalization normalization, OptimizerV2 optimizer, ILossFunc lossFunc, INetworkLayer[] encoderLayers, INetworkLayer[] decoderLayers, int epochs, int batchSize = -1, int? seed = 1, bool classification = false)
+		public ConvolutionalAutoencoder(INormalization normalization, OptimizerV2 optimizer, ILossFunc lossFunc, 
+			INetworkLayer[] encoderLayers, INetworkLayer[] decoderLayers, int epochs, int batchSize = -1, int? seed = 1, 
+			bool classification = false, bool shuffleTrainingData = false)
 		{
 			BatchSize = batchSize;
 			Epochs = epochs;
@@ -48,7 +36,7 @@ namespace MGroup.MachineLearning.TensorFlow.NeuralNetworks
 			EncoderLayer = encoderLayers;
 			DecoderLayer = decoderLayers;
 			this.classification = classification;
-
+			ShuffleTrainingData = shuffleTrainingData;
 			if (seed != null)
 			{
 				tf.set_random_seed(seed.Value);
@@ -62,6 +50,28 @@ namespace MGroup.MachineLearning.TensorFlow.NeuralNetworks
 		{
 		}
 
+		public int? Seed { get; }
+
+		public bool ShuffleTrainingData { get; }
+
+		public int BatchSize { get; }
+
+		public int Epochs { get; }
+
+		public INetworkLayer[] EncoderLayer { get; private set; }
+
+		public INetworkLayer[] DecoderLayer { get; private set; }
+
+		public INetworkLayer[] AutoencoderLayer { get; private set; }
+
+		public INormalization Normalization { get; private set; }
+
+		public OptimizerV2 Optimizer { get; }
+
+		public ILossFunc LossFunction { get; }
+
+		public Layer[] Layer { get; private set; }
+
 		public void Train(double[,,,] stimuli) => Train(stimuli, null);
 
 		public void Train(double[,,,] trainX, double[,,,] testX = null)
@@ -74,7 +84,7 @@ namespace MGroup.MachineLearning.TensorFlow.NeuralNetworks
 
 			autoencoderModel.compile(loss: LossFunction, optimizer: Optimizer);
 
-			autoencoderModel.fit(this.trainX, this.trainX, batch_size: BatchSize, epochs: Epochs, shuffle: false);
+			autoencoderModel.fit(this.trainX, this.trainX, batch_size: BatchSize, epochs: Epochs, shuffle: ShuffleTrainingData);
 
 			if (testX != null)
 			{

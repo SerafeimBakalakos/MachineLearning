@@ -1,56 +1,40 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using Tensorflow;
-using Tensorflow.Keras;
-using Tensorflow.Keras.ArgsDefinition;
-using Tensorflow.Keras.Engine;
-using Tensorflow.Keras.Optimizers;
-using Tensorflow.NumPy;
-using Tensorflow.Keras.Layers;
-using static Tensorflow.Binding;
-using static Tensorflow.KerasApi;
-using Tensorflow.Keras.Losses;
-using System.IO;
-using MGroup.MachineLearning.Preprocessing;
-using MGroup.MachineLearning.TensorFlow.KerasLayers;
-
 namespace MGroup.MachineLearning.TensorFlow.NeuralNetworks
 {
+	using System;
+	using System.IO;
+
+	using MGroup.MachineLearning.Preprocessing;
+	using MGroup.MachineLearning.TensorFlow.KerasLayers;
+	using Tensorflow;
+	using Tensorflow.Keras.Engine;
+	using Tensorflow.Keras.Losses;
+	using Tensorflow.Keras.Optimizers;
+	using Tensorflow.NumPy;
+
+	using static Tensorflow.Binding;
+	using static Tensorflow.KerasApi;
+
 	public class FeedForwardNeuralNetwork : INeuralNetwork
-    {
-        //public INetworkLayer[] neuralNetworkLayer { get; private set; }
-        private Keras.Model model;
-        private NDArray trainX, testX, trainY, testY;
-		private bool classification;
-
-        public int? Seed { get; }
-        public int BatchSize { get; }
-        public int Epochs { get; }
-        public INetworkLayer[] NeuralNetworkLayer { get; private set; }
-		public INormalization NormalizationX { get; private set; }
-        public INormalization NormalizationY { get; private set; }
-        public OptimizerV2 Optimizer { get; }
-        public ILossFunc LossFunction { get; }
-        public Layer[] Layer { get; private set; }
-
-        public FeedForwardNeuralNetwork(INormalization normalizationX, INormalization normalizationY, OptimizerV2 optimizer, ILossFunc lossFunc, INetworkLayer[] neuralNetworkLayer, int epochs, int batchSize = -1, int? seed = 1,bool classification = false)
-        {
-            BatchSize = batchSize;
-            Epochs = epochs;
-            Seed = seed;
-            NormalizationX = normalizationX;
-            NormalizationY = normalizationY;
-            Optimizer = optimizer;
-            LossFunction = lossFunc;
-            NeuralNetworkLayer = neuralNetworkLayer;
+	{
+		public FeedForwardNeuralNetwork(INormalization normalizationX, INormalization normalizationY, OptimizerV2 optimizer,
+			ILossFunc lossFunc, INetworkLayer[] neuralNetworkLayer, int epochs, int batchSize = -1, int? seed = 1,
+			bool classification = false, bool shuffleTrainingData = false)
+		{
+			BatchSize = batchSize;
+			Epochs = epochs;
+			Seed = seed;
+			NormalizationX = normalizationX;
+			NormalizationY = normalizationY;
+			Optimizer = optimizer;
+			LossFunction = lossFunc;
+			NeuralNetworkLayer = neuralNetworkLayer;
 			this.classification = classification;
-
-            if (seed != null)
-            {
-                tf.set_random_seed(seed.Value);
-            }
-        }
+			ShuffleTrainingData = shuffleTrainingData;
+			if (seed != null)
+			{
+				tf.set_random_seed(seed.Value);
+			}
+		}
 
 		/// <summary>
 		/// This constructor can be used for objects that will load their properties from external files.
@@ -59,86 +43,102 @@ namespace MGroup.MachineLearning.TensorFlow.NeuralNetworks
 		{
 		}
 
+		//public INetworkLayer[] neuralNetworkLayer { get; private set; }
+		private Keras.Model model;
+		private NDArray trainX, testX, trainY, testY;
+		private bool classification;
+
+		public int? Seed { get; }
+		public bool ShuffleTrainingData { get; }
+		public int BatchSize { get; }
+		public int Epochs { get; }
+		public INetworkLayer[] NeuralNetworkLayer { get; private set; }
+		public INormalization NormalizationX { get; private set; }
+		public INormalization NormalizationY { get; private set; }
+		public OptimizerV2 Optimizer { get; }
+		public ILossFunc LossFunction { get; }
+		public Layer[] Layer { get; private set; }
+
 		public void Train(double[,] stimuli, double[,] responses) => Train(stimuli, responses, null, null);
 
-        public void Train(double[,] trainX, double[,] trainY, double[,] testX = null, double[,] testY = null)
-        {
-            tf.enable_eager_execution();
+		public void Train(double[,] trainX, double[,] trainY, double[,] testX = null, double[,] testY = null)
+		{
+			tf.enable_eager_execution();
 
 			PrepareData(trainX, trainY, testX, testY);
 
 			CreateModel();
 
 			model.compile(loss: LossFunction, optimizer: Optimizer, metrics: new[] { "accuracy" });
-            model.fit(this.trainX, this.trainY, batch_size: BatchSize, epochs: Epochs, shuffle: false);
+			model.fit(this.trainX, this.trainY, batch_size: BatchSize, epochs: Epochs, shuffle: ShuffleTrainingData);
 
-            if (testX != null && testY != null)
-            {
-                model.evaluate(this.testX, this.testY, batch_size: BatchSize);
-            }
-        }
+			if (testX != null && testY != null)
+			{
+				model.evaluate(this.testX, this.testY, batch_size: BatchSize);
+			}
+		}
 
 		public double[,] EvaluateResponses(double[,] stimuli)
-        {
-            stimuli = NormalizationX.Normalize(stimuli);
+		{
+			stimuli = NormalizationX.Normalize(stimuli);
 
-            var npData = np.array(stimuli);
-            var resultFull = model.Apply(npData, training: false);
-            var resultSqueezed = tf.squeeze(resultFull).ToArray<double>();
-            var responses = new double[stimuli.GetLength(0), resultFull.shape.dims[1]]; //.GetShape().as_int_list()[1]];
-            for (int i = 0; i < responses.GetLength(0); i++)
-            {
-                for (int j = 0; j < responses.GetLength(1); j++)
-                {
-                    responses[i, j] = resultSqueezed[resultFull.shape.dims[1] * i + j];
-                }
-            }
+			var npData = np.array(stimuli);
+			var resultFull = model.Apply(npData, training: false);
+			var resultSqueezed = tf.squeeze(resultFull).ToArray<double>();
+			var responses = new double[stimuli.GetLength(0), resultFull.shape.dims[1]]; //.GetShape().as_int_list()[1]];
+			for (int i = 0; i < responses.GetLength(0); i++)
+			{
+				for (int j = 0; j < responses.GetLength(1); j++)
+				{
+					responses[i, j] = resultSqueezed[resultFull.shape.dims[1] * i + j];
+				}
+			}
 
-            responses = NormalizationY.Denormalize(responses);
+			responses = NormalizationY.Denormalize(responses);
 
-            return responses;
-        }
+			return responses;
+		}
 
-        public double[][,] EvaluateResponseGradients(double[,] stimuli)
-        {
-            stimuli = NormalizationX.Normalize(stimuli);
+		public double[][,] EvaluateResponseGradients(double[,] stimuli)
+		{
+			stimuli = NormalizationX.Normalize(stimuli);
 
-            var responseGradients = new double[stimuli.GetLength(0)][,];
-            for (int k = 0; k < stimuli.GetLength(0); k++)
-            {
-                var sample = new double[1, stimuli.GetLength(1)];
-                for (int i = 0; i < stimuli.GetLength(1); i++)
-                {
-                    sample[0, i] = stimuli[k, i];
-                }
+			var responseGradients = new double[stimuli.GetLength(0)][,];
+			for (int k = 0; k < stimuli.GetLength(0); k++)
+			{
+				var sample = new double[1, stimuli.GetLength(1)];
+				for (int i = 0; i < stimuli.GetLength(1); i++)
+				{
+					sample[0, i] = stimuli[k, i];
+				}
 
-                var ratioX = NormalizationX.ScalingRatio;
+				var ratioX = NormalizationX.ScalingRatio;
 
-                var npSample = np.array(sample);
-                using var tape = tf.GradientTape(persistent: true);
-                {
-                    tape.watch(npSample);
-                    Tensor pred = model.Apply(npSample, training: false);
-                    var ratioY = NormalizationY.ScalingRatio;
+				var npSample = np.array(sample);
+				using var tape = tf.GradientTape(persistent: true);
+				{
+					tape.watch(npSample);
+					Tensor pred = model.Apply(npSample, training: false);
+					var ratioY = NormalizationY.ScalingRatio;
 
-                    var numRowsGrad = pred.shape.dims[1];
-                    var numColsGrad = npSample.GetShape().as_int_list()[1];
-                    var slicedPred = new Tensor(0);
-                    responseGradients[k] = new double[numRowsGrad, numColsGrad];
-                    for (int i = 0; i < numRowsGrad; i++)
-                    {
-                        slicedPred = tf.slice<int, int>(pred, new int[] { 0, i }, new int[] { 1, 1 });
-                        var slicedGrad = tape.gradient(slicedPred, npSample).ToArray<double>();
-                        for (int j = 0; j < numColsGrad; j++)
-                        {
-                            responseGradients[k][i, j] = ratioY[i] / ratioX[j] * slicedGrad[j];
-                        }
-                    }
-                }
-            }
+					var numRowsGrad = pred.shape.dims[1];
+					var numColsGrad = npSample.GetShape().as_int_list()[1];
+					var slicedPred = new Tensor(0);
+					responseGradients[k] = new double[numRowsGrad, numColsGrad];
+					for (int i = 0; i < numRowsGrad; i++)
+					{
+						slicedPred = tf.slice<int, int>(pred, new int[] { 0, i }, new int[] { 1, 1 });
+						var slicedGrad = tape.gradient(slicedPred, npSample).ToArray<double>();
+						for (int j = 0; j < numColsGrad; j++)
+						{
+							responseGradients[k][i, j] = ratioY[i] / ratioX[j] * slicedGrad[j];
+						}
+					}
+				}
+			}
 
-            return responseGradients;
-        }
+			return responseGradients;
+		}
 
 		public double ValidateNetwork(double[,] testX, double[,] testY)
 		{
@@ -160,8 +160,8 @@ namespace MGroup.MachineLearning.TensorFlow.NeuralNetworks
 		}
 
 		public void SaveNetwork(string netPath, string weightsPath, string normalizationPath)
-        {
-            model.save_weights(weightsPath);
+		{
+			model.save_weights(weightsPath);
 
 			using (Stream stream = File.Open(normalizationPath, false ? FileMode.Append : FileMode.Create))
 			{
@@ -176,8 +176,8 @@ namespace MGroup.MachineLearning.TensorFlow.NeuralNetworks
 			}
 		}
 
-        public void LoadNetwork(string netPath, string weightsPath, string normalizationPath)
-        {
+		public void LoadNetwork(string netPath, string weightsPath, string normalizationPath)
+		{
 			using (Stream stream = File.Open(normalizationPath, FileMode.Open))
 			{
 				var binaryFormatter = new System.Runtime.Serialization.Formatters.Binary.BinaryFormatter();
