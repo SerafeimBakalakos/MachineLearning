@@ -296,7 +296,7 @@ namespace MGroup.MachineLearning.Utilities
 			}
 			else
 			{
-				return (range.Value.start ?? 0, range.Value.start ?? array.GetLength(dimension));
+				return (range.Value.start ?? 0, range.Value.end ?? array.GetLength(dimension));
 			}
 		}
 

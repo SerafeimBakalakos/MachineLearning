@@ -13,13 +13,13 @@ namespace MGroup.MachineLearning.Utilities
 		/// <param name="expected"><pa</param>
 		/// <param name="predicted"></param>
 		/// <returns></returns>
-		public static double CalculateMeanError(double[,] expected, double[,] predicted)
+		public static double CalculateMeanNorm2Error(double[,] expected, double[,] predicted)
 		{
 			int numSamples = expected.GetLength(0);
 			int dimension = expected.GetLength(1);
 			if (predicted.GetLength(0) != numSamples)
 			{
-				throw new ArgumentException($"Received {numSamples)} expected samples, " +
+				throw new ArgumentException($"Received {numSamples} expected samples, " +
 					$"but {predicted.GetLength(0)} corresponding predicted ones");
 			}
 			if (predicted.GetLength(1) != dimension)
@@ -31,18 +31,18 @@ namespace MGroup.MachineLearning.Utilities
 			double meanError = 0.0;
 			for (int s = 0; s < numSamples; s++)
 			{
-				double norm = 0.0;
-				double normDiff = 0.0;
+				double normExpected = 0.0;
+				double normDifference = 0.0;
 				for (int i = 0; i < dimension; i++)
 				{
-					norm += expected[s, i] * expected[s, i];
+					normExpected += expected[s, i] * expected[s, i];
 					double diff = expected[s, i] - predicted[s, i];
-					normDiff += diff * diff;
+					normDifference += diff * diff;
 				}
 
-				norm = Math.Sqrt(norm);
-				normDiff = Math.Sqrt(normDiff);
-				meanError += normDiff / norm;
+				normExpected = Math.Sqrt(normExpected);
+				normDifference = Math.Sqrt(normDifference);
+				meanError += normDifference / normExpected;
 			}
 
 			meanError /= numSamples;
@@ -56,7 +56,7 @@ namespace MGroup.MachineLearning.Utilities
 		/// <param name="expected"><pa</param>
 		/// <param name="predicted"></param>
 		/// <returns></returns>
-		public static double CalculateMeanError(double[,,] expected, double[,,] predicted)
+		public static double CalculateMeanNorm2Error(double[,,] expected, double[,,] predicted)
 		{
 			int numSamples = expected.GetLength(0);
 			int dim1 = expected.GetLength(1);
@@ -76,21 +76,21 @@ namespace MGroup.MachineLearning.Utilities
 			double meanError = 0.0;
 			for (int s = 0; s < numSamples; s++)
 			{
-				double norm = 0.0;
-				double normDiff = 0.0;
+				double normExpected = 0.0;
+				double normDifference = 0.0;
 				for (int i = 0; i < dim1; i++)
 				{
 					for (int j = 0; j < dim2; j++)
 					{
-						norm += expected[s, i, j] * expected[s, i, j];
+						normExpected += expected[s, i, j] * expected[s, i, j];
 						double diff = expected[s, i, j] - predicted[s, i, j];
-						normDiff += diff * diff;
+						normDifference += diff * diff;
 					}
 				}
 
-				norm = Math.Sqrt(norm);
-				normDiff = Math.Sqrt(normDiff);
-				meanError += normDiff / norm;
+				normExpected = Math.Sqrt(normExpected);
+				normDifference = Math.Sqrt(normDifference);
+				meanError += normDifference / normExpected;
 			}
 
 			meanError /= numSamples;
@@ -104,7 +104,7 @@ namespace MGroup.MachineLearning.Utilities
 		/// <param name="expected"><pa</param>
 		/// <param name="predicted"></param>
 		/// <returns></returns>
-		public static double CalculateMeanError(double[,,,] expected, double[,,,] predicted)
+		public static double CalculateMeanNorm2Error(double[,,,] expected, double[,,,] predicted)
 		{
 			int numSamples = expected.GetLength(0);
 			int dim1 = expected.GetLength(1);
@@ -125,24 +125,24 @@ namespace MGroup.MachineLearning.Utilities
 			double meanError = 0.0;
 			for (int s = 0; s < numSamples; s++)
 			{
-				double norm = 0.0;
-				double normDiff = 0.0;
+				double normExpected = 0.0;
+				double normDifference = 0.0;
 				for (int i = 0; i < dim1; i++)
 				{
 					for (int j = 0; j < dim2; j++)
 					{
 						for (int k = 0; k < dim3; k++)
 						{
-							norm += expected[s, i, j, k] * expected[s, i, j, k];
+							normExpected += expected[s, i, j, k] * expected[s, i, j, k];
 							double diff = expected[s, i, j, k] - predicted[s, i, j, k];
-							normDiff += diff * diff;
+							normDifference += diff * diff;
 						}
 					}
 				}
 
-				norm = Math.Sqrt(norm);
-				normDiff = Math.Sqrt(normDiff);
-				meanError += normDiff / norm;
+				normExpected = Math.Sqrt(normExpected);
+				normDifference = Math.Sqrt(normDifference);
+				meanError += normDifference / normExpected;
 			}
 
 			meanError /= numSamples;
