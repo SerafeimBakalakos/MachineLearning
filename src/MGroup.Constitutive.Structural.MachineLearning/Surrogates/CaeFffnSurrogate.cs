@@ -53,6 +53,9 @@ namespace MGroup.Constitutive.Structural.MachineLearning.Surrogates
 		private ConvolutionalAutoencoder _cae;
 		private FeedForwardNeuralNetwork _ffnn;
 
+		//Delete
+		private ConvolutionalNeuralNetwork _encoder;
+
 		public CaeFffnSurrogate(int caeBatchSize, int caeNumEpochs, float caeLearningRate, int caeKernelSize, int caeStrides,
 			ConvolutionPaddingType caePadding, int[] decoderFiltersWithoutOutput, int[] encoderFilters,
 			int ffnnBatchSize, int ffnnNumEpochs, int ffnnNumHiddenLayers, int ffnnHiddenLayerSize, float ffnnLearningRate,
@@ -81,9 +84,10 @@ namespace MGroup.Constitutive.Structural.MachineLearning.Surrogates
 		{
 			BuildAutoEncoder(solutionSpaceDim);
 			BuildFfnn(parameterSpaceDim);
+			BuildEncoder(solutionSpaceDim);
 		}
 
-		public void Train(double[,] solutionVectors, double[,] parameters, int numTotalSamples, double trainingSetRatio = 0.8)
+		public void Train(double[,] solutionVectors, double[,] parameters, int numTotalSamples, double testSetPercentage = 0.2)
 		{
 			if (solutionVectors.GetLength(0) != numTotalSamples)
 			{
@@ -96,17 +100,92 @@ namespace MGroup.Constitutive.Structural.MachineLearning.Surrogates
 					$" of samples {numTotalSamples}, but was {parameters.GetLength(0)} instead");
 			}
 
-			int numTrainingSamples = (int)Math.Floor(trainingSetRatio * numTotalSamples);
-			int numTestSamples = numTotalSamples - numTrainingSamples;
-			double[,] trainSolutions = solutionVectors.Slice((null, null), (null, numTrainingSamples));
-			double[,] testSolutions = solutionVectors.Slice((null, numTrainingSamples), (null, null));
-			double[,] trainParameters = parameters.Slice((null, null), (null, numTrainingSamples));
-			double[,] testParameters = parameters.Slice((null, numTrainingSamples), (null, null));
+			var splitter = new DatasetSplitter();
+			splitter.MinTestSetPercentage = testSetPercentage;
+			splitter.MinValidationSetPercentage = 0.0;
+			splitter.SetOrderToContiguous(DataSubsetType.Training, DataSubsetType.Test);
+			splitter.SetupSplittingRules(numTotalSamples);
+			(double[,] trainSolutions, double[,] testSolutions, _) = splitter.SplitDataset(solutionVectors);
+			(double[,] trainParameters, double[,] testParameters, _) = splitter.SplitDataset(parameters);
 
 			TrainCae(trainSolutions, testSolutions);
 			TestCae(testSolutions);
 			TrainFfnn(trainSolutions, testSolutions, trainParameters, testParameters);
 			TestFullSurrogate(testSolutions, testParameters);
+		}
+
+		//Delete
+		public void TrainNetworksIndependently(double[,] solutionVectors, double[,] parameters, double[,] latentSpace, 
+			int numTotalSamples, double testSetPercentage = 0.2)
+		{
+			if (solutionVectors.GetLength(0) != numTotalSamples)
+			{
+				throw new ArgumentException("The first dimension of the solution vectors input array must be equal to the number" +
+					$" of samples {numTotalSamples}, but was {solutionVectors.GetLength(0)} instead");
+			}
+			if (parameters.GetLength(0) != numTotalSamples)
+			{
+				throw new ArgumentException("The first dimension of the paramters input array must be equal to the number" +
+					$" of samples {numTotalSamples}, but was {parameters.GetLength(0)} instead");
+			}
+
+			var splitter = new DatasetSplitter();
+			splitter.MinTestSetPercentage = testSetPercentage;
+			splitter.MinValidationSetPercentage = 0.0;
+			splitter.SetOrderToContiguous(DataSubsetType.Training, DataSubsetType.Test);
+			splitter.SetupSplittingRules(numTotalSamples);
+			(double[,] trainSolutions, double[,] testSolutions, _) = splitter.SplitDataset(solutionVectors);
+			(double[,] trainParameters, double[,] testParameters, _) = splitter.SplitDataset(parameters);
+			(double[,] trainLatent, double[,] testLatent, _) = splitter.SplitDataset(latentSpace);
+
+			TrainOnlyFfnn(trainParameters, testParameters, trainLatent, testLatent);
+			//TrainOnlyEncoder(trainSolutions, testSolutions, trainLatent, testLatent);
+		}
+
+		//Delete
+		private void BuildEncoder(int solutionSpaceDim)
+		{
+			// Encoder layers
+			var encoderLayers = new List<INetworkLayer>();
+			encoderLayers.Add(new InputLayer(new int[] { 1, solutionSpaceDim })); // This was not needed in the original python code
+			for (int i = 0; i < _encoderFilters.Length; ++i)
+			{
+				encoderLayers.Add(new Convolutional1DLayer(_encoderFilters[i], _caeKernelSize, ActivationType.RelU,
+					strides: _caeStrides, padding: _caePadding));
+			}
+			encoderLayers.Add(new FlattenLayer()); // not sure if needed. The input is 1D and there is no such layer in the paper.
+			encoderLayers.Add(new DenseLayer(_latentSpaceDim, ActivationType.Linear)); // Output layer. Activation: f(x) = x
+
+			INormalization normalizationX = new NullNormalization();
+			INormalization normalizationY = new NullNormalization();
+			var optimizer = new Adam(dataType: DataType, learning_rate: _caeLearningRate);
+			ILossFunc lossFunction = KerasApi.keras.losses.MeanSquaredError();
+			_encoder = new ConvolutionalNeuralNetwork(normalizationX, normalizationY, optimizer, lossFunction, encoderLayers.ToArray(),
+				_caeNumEpochs, batchSize:_caeBatchSize, seed:_tfSeed, shuffleTrainingData: true);
+		}
+
+		//Delete
+		private void BuildDecoder(int solutionSpaceDim)
+		{
+			// Decoder layers
+			var decoderLayers = new List<INetworkLayer>();
+			decoderLayers.Add(new InputLayer(new int[] { _latentSpaceDim }));
+			decoderLayers.Add(new DenseLayer(32, ActivationType.RelU)); // This is 16 in the paper
+			decoderLayers.Add(new ReshapeLayer(new int[] { 1, 32 }));
+			for (int i = 0; i < _decoderFiltersWithoutOutput.Length; ++i)
+			{
+				decoderLayers.Add(new Convolutional1DTransposeLayer(_decoderFiltersWithoutOutput[i], _caeKernelSize,
+					ActivationType.RelU, strides: _caeStrides, padding: _caePadding));
+			}
+			decoderLayers.Add(new Convolutional1DTransposeLayer(solutionSpaceDim, _caeKernelSize,
+				ActivationType.Linear, strides: _caeStrides, padding: _caePadding)); // Output layer. Activation: f(x) = x
+
+			INormalization normalizationX = new NullNormalization();
+			INormalization normalizationY = new NullNormalization();
+			var optimizer = new Adam(dataType: DataType, learning_rate: _caeLearningRate);
+			ILossFunc lossFunction = KerasApi.keras.losses.MeanSquaredError();
+			_encoder = new ConvolutionalNeuralNetwork(normalizationX, normalizationY, optimizer, lossFunction, decoderLayers.ToArray(),
+				_caeNumEpochs, batchSize: _caeBatchSize, seed: _tfSeed, shuffleTrainingData: true);
 		}
 
 		private void BuildAutoEncoder(int solutionSpaceDim)
@@ -129,7 +208,7 @@ namespace MGroup.Constitutive.Structural.MachineLearning.Surrogates
 			decoderLayers.Add(new ReshapeLayer(new int[] { 1, 32 }));
 			for (int i = 0; i < _decoderFiltersWithoutOutput.Length; ++i)
 			{
-				encoderLayers.Add(new Convolutional1DTransposeLayer(_decoderFiltersWithoutOutput[i], _caeKernelSize, 
+				decoderLayers.Add(new Convolutional1DTransposeLayer(_decoderFiltersWithoutOutput[i], _caeKernelSize, 
 					ActivationType.RelU, strides: _caeStrides, padding: _caePadding));
 			}
 			decoderLayers.Add(new Convolutional1DTransposeLayer(solutionSpaceDim, _caeKernelSize, 
@@ -202,6 +281,50 @@ namespace MGroup.Constitutive.Structural.MachineLearning.Surrogates
 			writer.Close();
 		}
 
+		//Delete
+		private void TrainOnlyFfnn(double[,] trainParameters, double[,] testParameters, double[,] trainLatent, double[,] testLatent)
+		{
+			//testLatent set is different than python
+			var watch = new Stopwatch();
+			StreamWriter writer = _initOutputStream();
+
+			writer.WriteLine("Training feed forward neural network:");
+			watch.Restart();
+			_ffnn.Train(trainParameters, trainLatent); // python code also used the encoded test data as validation set here.
+			watch.Stop();
+			writer.WriteLine("Ellapsed ms: " + watch.ElapsedMilliseconds);
+
+			writer.WriteLine("Testing FFNN:");
+			watch.Restart();
+			double[,] ffnnPredictions = _ffnn.EvaluateResponses(testParameters);
+			double error = ErrorMetrics.CalculateMeanNorm2Error(testLatent, ffnnPredictions);
+
+			watch.Stop();
+			writer.WriteLine("Ellapsed ms: " + watch.ElapsedMilliseconds);
+			writer.WriteLine($"Mean error = 1/numSamples * sumOverSamples( norm2(FFNN(theta) - w) / norm2(w) = {error}");
+
+			writer.Close();
+		}
+
+		//Delete
+		private void TrainOnlyEncoder(double[,] trainSolutions, double[,] testSolutions, double[,] trainLatent, double[,] testLatent)
+		{
+			var watch = new Stopwatch();
+			StreamWriter writer = _initOutputStream();
+
+			writer.WriteLine("Training convolutional autoencoder:");
+			watch.Start();
+			double[,,,] validationSolutions = testSolutions.AddEmptyDimensions(false, true, false, true);
+			_encoder.Train(
+				trainSolutions.AddEmptyDimensions(false, true, false, true),
+				trainLatent
+				); // python code also used the test data as validation set here.
+			watch.Stop();
+			writer.WriteLine("Ellapsed ms: " + watch.ElapsedMilliseconds);
+			writer.WriteLine();
+
+			writer.Close();
+		}
 		private void TestCae(double[,] testSolutions)
 		{
 			var watch = new Stopwatch();
@@ -210,7 +333,7 @@ namespace MGroup.Constitutive.Structural.MachineLearning.Surrogates
 			writer.WriteLine("Testing convolutional autoencoder:");
 			watch.Start();
 			double[,,,] caePredictions = _cae.EvaluateResponses(testSolutions.AddEmptyDimensions(false, true, false, true));
-			double error = ErrorMetrics.CalculateMeanError(
+			double error = ErrorMetrics.CalculateMeanNorm2Error(
 				testSolutions.AddEmptyDimensions(false, true, false, true), caePredictions);
 			watch.Stop();
 			writer.WriteLine("Ellapsed ms: " + watch.ElapsedMilliseconds);
@@ -230,7 +353,7 @@ namespace MGroup.Constitutive.Structural.MachineLearning.Surrogates
 			double[,] ffnnPredictions = _ffnn.EvaluateResponses(testParameters);
 			double[,,,] surrogatePredictions = _cae.MapReducedToFull(
 				ffnnPredictions.AddEmptyDimensions(false, true, false, true));
-			double error = ErrorMetrics.CalculateMeanError(
+			double error = ErrorMetrics.CalculateMeanNorm2Error(
 				testSolutions.AddEmptyDimensions(false, true, false, true), surrogatePredictions);
 
 			watch.Stop();

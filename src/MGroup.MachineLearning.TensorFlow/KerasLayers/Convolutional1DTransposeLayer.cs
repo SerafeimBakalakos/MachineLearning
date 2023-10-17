@@ -51,7 +51,7 @@ namespace MGroup.MachineLearning.TensorFlow.KerasLayers
 			{
 				return new Conv2DTranspose(new Conv2DArgs()
 				{
-					Rank = 2,
+					//Rank = 2,
 					Filters = this.Filters,
 					KernelSize = (this.KernelSize, 1),
 					Activation = ActivationType.GetActivationFunc(),
@@ -65,7 +65,7 @@ namespace MGroup.MachineLearning.TensorFlow.KerasLayers
 			{
 				return new Conv2DTranspose(new Conv2DArgs()
 				{
-					Rank = 2,
+					//Rank = 2,
 					Filters = this.Filters,
 					KernelSize = (1, this.KernelSize),
 					Activation = ActivationType.GetActivationFunc(),
