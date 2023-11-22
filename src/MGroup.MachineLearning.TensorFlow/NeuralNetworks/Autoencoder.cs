@@ -268,7 +268,7 @@ namespace MGroup.MachineLearning.TensorFlow.NeuralNetworks
 
 			var latentVector = outputsEncoder;
 
-			var inputsDecoder = keras.Input(shape: encoderModel.Layers[encoderModel.Layers.Count - 1].OutputShape.as_int_list()[1], dtype: TF_DataType.TF_DOUBLE); //.as_int_list()[0]
+			var inputsDecoder = keras.Input(shape: encoderModel.Layers[encoderModel.Layers.Count - 1].output_shape.as_int_list()[1], dtype: TF_DataType.TF_DOUBLE); //.as_int_list()[0]
 			var outputsDecoder = inputsDecoder;
 			for (int i = 0; i < DecoderLayer.Length; i++)
 			{

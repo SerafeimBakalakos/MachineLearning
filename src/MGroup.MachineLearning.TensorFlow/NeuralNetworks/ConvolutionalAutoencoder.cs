@@ -3,9 +3,12 @@ namespace MGroup.MachineLearning.TensorFlow.NeuralNetworks
 	using System;
 	using System.IO;
 	using System.Linq;
+	using System.Text;
 
 	using MGroup.MachineLearning.Preprocessing;
 	using MGroup.MachineLearning.TensorFlow.KerasLayers;
+	using MGroup.MachineLearning.Utilities;
+
 	using Tensorflow;
 	using Tensorflow.Keras.Engine;
 	using Tensorflow.Keras.Losses;
@@ -82,7 +85,7 @@ namespace MGroup.MachineLearning.TensorFlow.NeuralNetworks
 
 			CreateModel();
 
-			autoencoderModel.compile(loss: LossFunction, optimizer: Optimizer);
+			autoencoderModel.compile(loss: LossFunction, optimizer: Optimizer, metrics: new[] { "accuracy" });
 
 			autoencoderModel.fit(this.trainX, this.trainX, batch_size: BatchSize, epochs: Epochs, shuffle: ShuffleTrainingData);
 
@@ -113,10 +116,98 @@ namespace MGroup.MachineLearning.TensorFlow.NeuralNetworks
 			return responses;
 		}
 
+		public double[,] MapFull4DToReduced2D(double[,,,] initialStimuli)
+		{
+			var npData = np.array(initialStimuli);
+			Tensor prediction = encoderModel.Apply(npData, training: false);
+			var result = ((Tensor)prediction).numpy();
+
+			if (result.rank == 2)
+			{
+				Array array = result.ToMultiDimArray<double>();
+				return (double[,])array;
+			}
+			else
+			{
+				throw new NotImplementedException();
+			}
+			
+		}
+
 		public double[,,,] MapFullToReduced(double[,,,] initialStimuli)
 		{
 			var npData = np.array(initialStimuli);
-			var result = ((Tensor)encoderModel.Apply(npData, training: false)).numpy();
+			Tensor prediction = encoderModel.Apply(npData, training: false);
+			var result = ((Tensor)prediction).numpy();
+
+			if (result.rank > 4)
+			{
+				throw new Exception("Applying the encoder model should not have returned a tensor with rank > 4.");
+			}
+
+			Array array = result.ToMultiDimArray<double>();
+			if (result.rank == 4)
+			{
+				return (double[,,,])array;
+			}
+			else
+			{
+				var makeDimEmpty = new bool[4];
+				int numEmptyDimensions = 0;
+				for (int d = 0; d < 4; ++d)
+				{
+					if (initialStimuli.GetLength(d) == 1)
+					{
+						makeDimEmpty[d] = true;
+						++numEmptyDimensions;
+					}
+				}
+				if (numEmptyDimensions + result.rank != 4)
+				{
+					throw new Exception(
+						$"Input array has rank ri={initialStimuli.Rank} and e={numEmptyDimensions} empty dimensions, while" +
+						$"output TensorFlow tensor has rank ro={result.rank}. It must hold ro+e=ri, but it did not.");
+				}
+
+
+				if (result.rank == 3)
+				{
+					var array3D = (double[,,])array;
+					return array3D.AddEmptyDimensions(makeDimEmpty[0], makeDimEmpty[1], makeDimEmpty[2], makeDimEmpty[3]);
+				}
+				else if (result.rank == 2)
+				{
+					var array2D = (double[,])array;
+					return array2D.AddEmptyDimensions(makeDimEmpty[0], makeDimEmpty[1], makeDimEmpty[2], makeDimEmpty[3]);
+				}
+				else // result.rank == 1
+				{
+					var array1D = (double[])array;
+					return array1D.AddEmptyDimensions(makeDimEmpty[0], makeDimEmpty[1], makeDimEmpty[2], makeDimEmpty[3]);
+				}
+			}
+
+			//var responses = new double[result.shape[0], result.shape[1], result.shape[2], result.shape[3]];
+			//for (int i = 0; i < result.shape[0]; i++)
+			//{
+			//	for (int j = 0; j < result.shape[1]; j++)
+			//	{
+			//		for (int k = 0; k < result.shape[2]; k++)
+			//		{
+			//			for (int l = 0; l < result.shape[3]; l++)
+			//			{
+			//				responses[i, j, k, l] = result[i, j, k, l];
+			//			}
+			//		}
+			//	}
+			//}
+			//return responses;
+		}
+
+		public double[,,,] MapReducedToFull(double[,,,] reducedStimuli)
+		{
+			var npData = np.array(reducedStimuli);
+			var result = ((Tensor)decoderModel.Apply(npData, training: false)).numpy();
 			var responses = new double[result.shape[0], result.shape[1], result.shape[2], result.shape[3]];
 			for (int i = 0; i < result.shape[0]; i++)
 			{
@@ -134,7 +225,7 @@ namespace MGroup.MachineLearning.TensorFlow.NeuralNetworks
 			return responses;
 		}
 
-		public double[,,,] MapReducedToFull(double[,,,] reducedStimuli)
+		public double[,,,] MapReduced2DToFull4D(double[,] reducedStimuli)
 		{
 			var npData = np.array(reducedStimuli);
 			var result = ((Tensor)decoderModel.Apply(npData, training: false)).numpy();
@@ -262,6 +353,13 @@ namespace MGroup.MachineLearning.TensorFlow.NeuralNetworks
 
 		private void CreateModel()
 		{
+			#region DEBUG
+			//Delete all lines referencing "text" variable, when cleaning this
+			var text = new System.Text.StringBuilder();
+			text.AppendLine("CAE layers and tensors:");
+			text.AppendLine("Encoder:");
+			#endregion
+
 			keras.backend.clear_session();
 			keras.backend.set_floatx(TF_DataType.TF_DOUBLE);
 			if (!(EncoderLayer[0] is KerasLayers.InputLayer))
@@ -275,9 +373,11 @@ namespace MGroup.MachineLearning.TensorFlow.NeuralNetworks
 
 			var inputsEncoder = keras.Input(shape: ((KerasLayers.InputLayer)EncoderLayer[0]).InputShape, dtype: TF_DataType.TF_DOUBLE); //.as_int_list()[0]
 			var outputsEncoder = inputsEncoder;
+			LogTensor(outputsEncoder, text);
 			for (int i = 1; i < EncoderLayer.Length; i++)
 			{
 				outputsEncoder = EncoderLayer[i].BuildLayer(outputsEncoder);
+				LogTensor(outputsEncoder, text);
 				AutoencoderLayer[i] = EncoderLayer[i];
 			}
 
@@ -285,13 +385,17 @@ namespace MGroup.MachineLearning.TensorFlow.NeuralNetworks
 
 			encoderModel.summary();
 
-			var inputsDecoder = keras.Input(shape: encoderModel.Layers[encoderModel.Layers.Count - 1].OutputShape.as_int_list().Skip(1).Take(3).ToArray(), dtype: TF_DataType.TF_DOUBLE); //.as_int_list()[0]
+			var inputsDecoder = keras.Input(shape: encoderModel.Layers[encoderModel.Layers.Count - 1].output_shape.as_int_list().Skip(1).Take(3).ToArray(), dtype: TF_DataType.TF_DOUBLE); //.as_int_list()[0]
 			var outputsDecoder = inputsDecoder;
+			text.AppendLine("Decoder:");
+			LogTensor(outputsDecoder, text);
 			for (int i = 0; i < DecoderLayer.Length; i++)
 			{
 				outputsDecoder = DecoderLayer[i].BuildLayer(outputsDecoder);
+				LogTensor(outputsDecoder, text);
 				AutoencoderLayer[EncoderLayer.Length + i] = DecoderLayer[i];
 			}
+			System.Diagnostics.Debug.WriteLine(text.ToString());
 
 			decoderModel = new Keras.Model(inputsDecoder, outputsDecoder, "decoder");
 
@@ -313,5 +417,13 @@ namespace MGroup.MachineLearning.TensorFlow.NeuralNetworks
 
 			autoencoderModel.summary();
 		}
+
+		#region DEBUG
+		private static void LogTensor(Tensor tensor, StringBuilder text)
+		{
+			text.Append($"Layer: name={tensor.KerasHistory.Layer.Name}, shape={tensor.KerasHistory.Layer.output_shape}");
+			text.AppendLine($". Tensor: name={tensor.name}, shape={tensor.shape}");
+		}
+		#endregion
 	}
 }

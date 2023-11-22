@@ -87,6 +87,24 @@ namespace MGroup.MachineLearning.TensorFlow.NeuralNetworks
 			}
 		}
 
+		public void Train(Array trainX, Array trainY, Array testX = null, Array testY = null)
+		{
+			tf.enable_eager_execution();
+
+			PrepareData(trainX, trainY, testX, testY);
+
+			CreateModel();
+
+			model.compile(loss: LossFunction, optimizer: Optimizer, metrics: new[] { "accuracy" });
+
+			model.fit(this.trainX, this.trainY, batch_size: BatchSize, epochs: Epochs, shuffle: ShuffleTrainingData);
+
+			if (testX != null && testY != null)
+			{
+				model.evaluate(this.testX, this.testY, batch_size: BatchSize);
+			}
+		}
+
 		public double[,] EvaluateResponses(double[,,,] stimuli)
 		{
 			//stimuli = NormalizationX.Normalize(stimuli);
@@ -104,6 +122,49 @@ namespace MGroup.MachineLearning.TensorFlow.NeuralNetworks
 			}
 
 			//responses = NormalizationY.Denormalize(responses);
+
+			return responses;
+		}
+
+		public double[,] EvaluateResponses(double[,,] stimuli)
+		{
+			//stimuli = NormalizationX.Normalize(stimuli);
+
+			var npData = np.array(stimuli);
+			var result = ((Tensor)model.Apply(npData, training: false)).numpy();
+			//var resultSqueezed = tf.squeeze(resultFull).ToArray<double>();
+			var responses = new double[result.shape[0], result.shape[1]]; //.GetShape().as_int_list()[1]];
+			for (int i = 0; i < result.shape[0]; i++)
+			{
+				for (int j = 0; j < result.shape[1]; j++)
+				{
+					responses[i, j] = result[i, j];
+				}
+			}
+
+			//responses = NormalizationY.Denormalize(responses);
+
+			return responses;
+		}
+
+		public double[,,,] EvaluateResponses(double[,] stimuli)
+		{
+			var npData = np.array(stimuli);
+			var result = ((Tensor)model.Apply(npData, training: false)).numpy();
+			var responses = new double[result.shape[0], result.shape[1], result.shape[2], result.shape[3]]; //.GetShape().as_int_list()[1]];
+			for (int i = 0; i < result.shape[0]; i++)
+			{
+				for (int j = 0; j < result.shape[1]; j++)
+				{
+					for (int k = 0; k < result.shape[2]; k++)
+					{
+						for (int m = 0;  m < result.shape[3]; m++)
+						{
+							responses[i, j, k, m] = result[i, j, k, m];
+						}
+					}
+				}
+			}
 
 			return responses;
 		}
@@ -216,6 +277,17 @@ namespace MGroup.MachineLearning.TensorFlow.NeuralNetworks
 			}
 		}
 
+		private void PrepareData(Array trainX, Array trainY, Array testX = null, Array testY = null)
+		{
+			this.trainX = np.array(trainX);
+			this.trainY = np.array(trainY);
+			if (testX != null && testY != null)
+			{
+				this.testX = np.array(testX);
+				this.testY = np.array(testY);
+			}
+		}
+
 		private void CreateModel()
 		{
 			keras.backend.clear_session();
@@ -225,14 +297,24 @@ namespace MGroup.MachineLearning.TensorFlow.NeuralNetworks
 				throw new NotImplementedException($"First layer must be of type IInputLayer");
 			}
 
+			#region DEBUG
+			var text = new System.Text.StringBuilder();
+			text.AppendLine("CNN layers:");
+			#endregion
+
 			//var inputs = keras.Input(shape: (this.trainX.shape[1], this.trainX.shape[2], this.trainX.shape[3]), dtype: TF_DataType.TF_DOUBLE);
 			var inputs = keras.Input(shape: ((KerasLayers.InputLayer)NeuralNetworkLayer[0]).InputShape, dtype: TF_DataType.TF_DOUBLE); //.as_int_list()[0]
 			var outputs = inputs;
+			text.AppendLine($"Layer 0: {NeuralNetworkLayer[0].ToString()}, shape={outputs.shape}");
 
 			for (int i = 1; i < NeuralNetworkLayer.Length; i++)
 			{
+				text.Append($"Layer {i}: {NeuralNetworkLayer[i].ToString()}, input shape={outputs.shape}, ");
+
 				outputs = NeuralNetworkLayer[i].BuildLayer(outputs);
+				text.AppendLine($"output shape={outputs.shape}");
 			}
+			System.Diagnostics.Debug.WriteLine(text.ToString());
 
 			model = new Keras.Model(inputs, outputs, "current_model");
 

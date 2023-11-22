@@ -35,16 +35,22 @@ namespace MGroup.MachineLearning.TensorFlow.KerasLayers
 
 		public ConvolutionPaddingType Padding { get; }
 
-		public Tensors BuildLayer(Tensors inputs) => new Conv1D(new Conv1DArgs()
+		public Tensors BuildLayer(Tensors inputs)
 		{
-			Rank = this.Rank,
-			Filters = this.Filters,
-			KernelSize = this.KernelSize,
-			Activation = ActivationType.GetActivationFunc(),
-			DilationRate = this.DilationRate,
-			Strides = this.Strides,
-			DType = TF_DataType.TF_DOUBLE,
-			Padding = this.Padding.ToString(),
-		}).Apply(inputs);
+			var args = new Conv1DArgs()
+			{
+				Rank = this.Rank,
+				Filters = this.Filters,
+				KernelSize = this.KernelSize,
+				Activation = ActivationType.GetActivationFunc(),
+				DilationRate = this.DilationRate,
+				Strides = this.Strides,
+				DType = TF_DataType.TF_DOUBLE,
+				Padding = this.Padding.GetNameForTensorFlow(),
+			};
+			var kerasLayer = new Conv1D(args);
+			Tensors result = kerasLayer.Apply(inputs);
+			return result;
+		}
 	}
 }

@@ -28,7 +28,7 @@ namespace MGroup.MachineLearning.TensorFlow.KerasLayers
 
 	public static class ConvolutionPaddingTypeExtensions
 	{
-		public static string ToString(this ConvolutionPaddingType padding) => padding switch
+		public static string GetNameForTensorFlow(this ConvolutionPaddingType padding) => padding switch
 		{
 			ConvolutionPaddingType.Valid => "valid",
 			ConvolutionPaddingType.Same => "same",

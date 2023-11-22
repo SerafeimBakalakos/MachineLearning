@@ -16,25 +16,37 @@ namespace MGroup.MachineLearning.TensorFlow.KerasLayers
 		public int Filters { get; }
 		public (int, int) KernelSize { get; }
 		public ActivationType ActivationType { get; }
+		public (int, int)? Strides { get; }
+		public int DilationRate { get; }
 		public string Padding { get; }
 
-		public Convolutional2DLayer(int filters, (int, int) kernelSize, ActivationType activationType, string padding = "valid")
+		public Convolutional2DLayer(int filters, (int, int) kernelSize, ActivationType activationType, (int, int)? strides = null, 
+			int dilationRate = 1, string padding = "valid")
 		{
 			Filters = filters;
 			KernelSize = kernelSize;
 			ActivationType = activationType;
+			Strides = strides;
+			DilationRate = dilationRate;
 			Padding = padding;
 		}
 
-		public Tensors BuildLayer(Tensors output) => new Conv2D(new Conv2DArgs()
+		public Tensors BuildLayer(Tensors output)
 		{
-			Filters = Filters,
-			KernelSize = KernelSize,
-			Activation = GetActivationByName(ActivationType),
-			Padding = Padding,
-			DilationRate = 0,
-			DType = TF_DataType.TF_DOUBLE,
-		}).Apply(output);
+			var args = new Conv2DArgs()
+			{
+				Filters = Filters,
+				KernelSize = KernelSize,
+				Activation = GetActivationByName(ActivationType),
+				Strides = this.Strides ?? (1, 1),
+				Padding = Padding,
+				DilationRate = this.DilationRate,
+				DType = TF_DataType.TF_DOUBLE,
+			};
+			var kerasLayer = new Conv2D(args);
+			Tensors result = kerasLayer.Apply(output);
+			return result;
+		}
 
 		private Activation GetActivationByName(ActivationType activation)
 		{
