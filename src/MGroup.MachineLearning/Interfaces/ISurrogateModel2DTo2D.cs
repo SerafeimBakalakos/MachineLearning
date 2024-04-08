@@ -22,5 +22,6 @@ namespace MGroup.MachineLearning.Interfaces
 		/// <param name="splitter">If null, the surrogate will decide how to split the datasets.</param>
 		/// <returns></returns>
 		Dictionary<string, double> TrainAndEvaluate(double[,] inputDataset, double[,] outputDataset, DatasetSplitter splitter);
+
 	}
 }

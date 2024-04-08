@@ -91,6 +91,15 @@ namespace MGroup.Constitutive.Structural.MachineLearning.Surrogates
 			_initOutputStream = initOutputStream;
 		}
 
+		public double[] Predict(double[] input)
+		{
+			double[,] ffnnInput = input.AddEmptyDimensions(true, false);
+			double[,] ffnnPrediction = _ffnn.EvaluateResponses(ffnnInput);
+			double[,,,] surrogatePrediction = _cae.MapReduced2DToFull4D(ffnnPrediction);
+			double[] output = surrogatePrediction.RemoveEmptyDimensions(1, 2, 3);
+			return output;
+		}
+
 		public Dictionary<string, double> TrainAndEvaluate(double[,] inputDataset, double[,] outputDataset, 
 			DatasetSplitter? splitter)
 		{

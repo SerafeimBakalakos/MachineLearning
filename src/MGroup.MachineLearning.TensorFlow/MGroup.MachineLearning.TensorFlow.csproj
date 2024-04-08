@@ -20,9 +20,9 @@
 
   <ItemGroup>
     <PackageReference Include="NumSharp" Version="0.30.0" />
-    <PackageReference Include="SciSharp.TensorFlow.Redist" Version="2.11.4" />
-    <PackageReference Include="TensorFlow.Keras" Version="0.11.4" />
-    <PackageReference Include="TensorFlow.NET" Version="0.110.4" />
+    <PackageReference Include="SciSharp.TensorFlow.Redist" Version="2.11.0" />
+    <PackageReference Include="TensorFlow.Keras" Version="0.10.2" />
+    <PackageReference Include="TensorFlow.NET" Version="0.100.2" />
   </ItemGroup>
 
   <ItemGroup>

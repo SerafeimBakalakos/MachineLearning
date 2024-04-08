@@ -109,6 +109,9 @@ namespace MGroup.Constitutive.Structural.MachineLearning.Tests
 			surrogateBuilder.TensorFlowSeed = seed;
 			var surrogate = surrogateBuilder.BuildSurrogate();
 			Dictionary<string, double> errors = surrogate.TrainAndEvaluate(parameters, solutions, surrogateBuilder.Splitter);
+
+			double[] input = GetRow(0, parameters);
+			double[] prediction = surrogate.Predict(input);
 		}
 
 		private static (double[,] solutions, double[,] parameters, double[,] latentSpace) ReadData()
@@ -124,6 +127,17 @@ namespace MGroup.Constitutive.Structural.MachineLearning.Tests
 			double[,] latentSpace = np.Load<double[,]>(latentSpacePath); // [numSamples, latentSpaceSize]
 
 			return (solutionVectors.RemoveEmptyDimension(1), parameters, latentSpace);
+		}
+
+		private static double[] GetRow(int rowIdx, double[,] matrix)
+		{
+			int n = matrix.GetLength(1);
+			double[] result = new double[n];
+			for (int j =0; j < n; j++)
+			{
+				result[j] = matrix[rowIdx, j];
+			}
+			return result;
 		}
 	}
 }
